@@ -8,7 +8,37 @@
 
 namespace Jpeg::Decoder {
 
-    JpegDecoder::JpegDecoder() {}
+    JpegDecoder::JpegDecoder() {
+        m_handlers.fill(nullptr);
+
+        // 列印 Marker
+        m_handlers[Jpeg::Constants::SOI] = [](StreamReader&, JpegImage&) {
+            std::cout << "[Marker] Start of Image (SOI)" << std::endl;
+        };
+
+        m_handlers[Jpeg::Constants::APP0] = [](StreamReader&, JpegImage&) {
+            std::cout << "[Marker] Application Segment 0 (APP0)" << std::endl;
+        };
+
+        // 核心解析邏輯
+        m_handlers[Jpeg::Constants::DQT] = [this](StreamReader& r, JpegImage& img) {
+            std::cout << "[Marker] Define Quantization Table (DQT)" << std::endl;
+            this->parseDQT(r, img);
+        };
+        m_handlers[Jpeg::Constants::DHT] = [this](StreamReader& r, JpegImage& img) {
+            std::cout << "[Marker] Define Huffman Table (DHT)" << std::endl;
+            this->parseDHT(r, img);
+        };
+        m_handlers[Jpeg::Constants::SOF0] = [this](StreamReader& r, JpegImage& img) {
+            std::cout << "[Marker] Start of Frame (SOF0)" << std::endl;
+            this->parseSOF(r, img);
+        };
+        m_handlers[Jpeg::Constants::SOS] = [this](StreamReader& r, JpegImage& img) {
+            std::cout << "[Marker] Start of Scan (SOS)" << std::endl;
+            this->parseSOS(r, img);
+            img.render(r); // 解析完 SOS 立刻開始 render
+        };
+    }
 
     std::unique_ptr<JpegImage> JpegDecoder::decode(const std::string& filename) {
         StreamReader reader(filename);
@@ -23,45 +53,22 @@ namespace Jpeg::Decoder {
             if (byte == Jpeg::Constants::MARKER_PREFIX) {
                 uint8_t marker = reader.readByte();
 
-                switch (marker) {
-                    case Jpeg::Constants::SOI:
-                        std::cout << "[Marker] Start of Image (SOI)" << std::endl;
-                        break;
+                if (marker == Jpeg::Constants::EOI) {
+                    std::cout << "End of Image (EOI)" << std::endl;
+                    return image;
+                }
 
-                    case Jpeg::Constants::EOI:
-                        std::cout << "[Marker] End of Image (EOI)" << std::endl;
-                        return image;
-
-                    case Jpeg::Constants::DQT:
-                        std::cout << "[Marker] Define Quantization Table (DQT)" << std::endl;
-                        parseDQT(reader, *image);
-                        break;
-
-                    case Jpeg::Constants::DHT:
-                        std::cout << "[Marker] Define Huffman Table (DHT)" << std::endl;
-                        parseDHT(reader, *image);
-                        break;
-
-                    case Jpeg::Constants::SOF0:
-                        std::cout << "[Marker] Start of Frame (SOF0)" << std::endl;
-                        parseSOF(reader, *image);
-                        break;
-
-                    case Jpeg::Constants::SOS:
-                        std::cout << "[Marker] Start of Scan (SOS)" << std::endl;
-                        parseSOS(reader, *image);
-                        image->render(reader);
-                        break;
-
-                    case Jpeg::Constants::APP0:
-                        std::cout << "[Marker] Application Segment 0 (APP0)" << std::endl;
-                        break;
-
-                    default:
-                        // 遇到不認識的 Marker
+                if (m_handlers[marker]) {
+                    m_handlers[marker](reader, *image);
+                } else {
+                    if(marker == Jpeg::Constants::SOI){
+                        std::cout << "Start of Image (SOI)" << std::endl;
+                    }
+                    // 遇到不認識的 Marker
+                    else if (marker != Jpeg::Constants::SOI && marker != 0x00) {
                         uint16_t len = reader.readWord();
                         reader.skip(len - 2);
-                        break;
+                    }
                 }
             }
         }
