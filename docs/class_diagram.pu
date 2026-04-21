@@ -1,0 +1,92 @@
+@startuml
+
+package "Decoder Infrastructure" {
+    class JpegDecoder {
+        + decode(filename : string) : unique_ptr<JpegImage>
+        - parseDQT(reader: StreamReader&, image: JpegImage&) : void
+        - parseDHT(reader: StreamReader&, image: JpegImage&) : void
+        - parseSOF(reader: StreamReader&, image: JpegImage&) : void
+        - parseSOS(reader: StreamReader&, image: JpegImage&) : void
+    }
+
+    class JpegImage {
+        - m_width : uint16_t
+        - m_height : uint16_t
+        - m_qTables : array<array<uint16_t, 64>, 4>
+        - m_components : array<ColorComponent, 3>
+        - m_ycbcr : vector<vector<vector<uint8_t>>>
+        -- Processors --
+        - m_huffmanDecoder : HuffmanDecoder
+        - m_dequantizer : Dequantizer
+        - m_inverseZigZag : InverseZigZag
+        - m_idct : IDCT
+        - m_upsampler : Upsampler
+        -- Methods --
+        + render(reader : StreamReader&) : void
+        + exportToBmp(filename : string) : bool
+        - initBuffers() : void
+        - readMcu(reader : BitReader&, mcuX : int, mcuY : int) : void
+        - storeBlock(c, mcuX, mcuY, h, v, block) : void
+    }
+
+    class BitReader {
+        - m_reader : StreamReader&
+        - m_buffer : uint32_t
+        - m_count : int
+        + readBit() : uint8_t
+        + readBits(n : int) : uint32_t
+    }
+
+    class HuffmanDecoder {
+        - m_layerMin : array<array<int32_t, 16>, 4>
+        - m_layerMax : array<array<int32_t, 16>, 4>
+        - m_offset : array<array<int32_t, 16>, 4>
+        - m_huffvals : array<array<uint8_t, 256>, 4>
+        - m_lastDcValues : array<int16_t, 3>
+        + loadTable(id, type, spec) : void
+        + decodeBlock(reader, DC_id, AC_id, c, block) : void
+    }
+
+    class Dequantizer {
+        + dequantize(block : array<int16_t,64>&, qTable : uint16_t*) : void
+    }
+
+    class InverseZigZag {
+        + transform(block : array<int16_t,64>&) : void
+    }
+
+    class IDCT {
+        + transform(block : array<int16_t,64>&) : void
+    }
+
+    class Upsampler {
+        + upsample(input, targetW, targetH) : vector<vector<uint8_t>>
+    }
+}
+
+package "Data Structures" {
+    class HuffmanTableSpec <<struct>> {
+        + bits : uint8_t[16]
+        + huffval : uint8_t[256]
+    }
+
+    class ColorComponent <<struct>> {
+        + id, H, V, Tq, Td, Ta : uint8_t
+    }
+}
+
+' Relationships
+JpegDecoder ..> JpegImage : "creates and returns"
+JpegDecoder --> StreamReader : "uses"
+
+JpegImage *-- ColorComponent
+JpegImage *-- HuffmanDecoder
+JpegImage *-- Dequantizer
+JpegImage *-- InverseZigZag
+JpegImage *-- IDCT
+JpegImage *-- Upsampler
+
+HuffmanDecoder ..> BitReader : "uses"
+BitReader o-- StreamReader : "wraps"
+
+@enduml
