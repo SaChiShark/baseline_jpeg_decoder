@@ -29,6 +29,14 @@ package "Decoder Infrastructure" {
         - storeBlock(c, mcuX, mcuY, h, v, block) : void
     }
 
+    class StreamReader {
+        - m_file : ifstream
+        + StreamReader(filename : string)
+        + readByte() : uint8_t
+        + readWord() : uint16_t
+        + skip(length : streamsize) : void
+    }
+
     class BitReader {
         - m_reader : StreamReader&
         - m_buffer : uint32_t

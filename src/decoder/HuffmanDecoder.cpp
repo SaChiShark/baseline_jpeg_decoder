@@ -45,7 +45,6 @@ namespace Jpeg::Decoder {
         uint8_t value_len = matchHuffman(reader, DC_id);
         uint32_t diff_bits = reader.readBits(value_len);
         int diff = decodeValue(diff_bits, value_len);
-        
         int DC = m_lastDcValues[c] + diff;
         block[0] = DC;
         m_lastDcValues[c] = DC;
@@ -69,7 +68,7 @@ namespace Jpeg::Decoder {
             value_len = AC_info & 0x0F;
 
             for (int j = 0; j < leeding_zeros && i < 64; j++) block[i++] = 0;
-                            
+        
             if (i < 64) {
                 uint32_t val_bits = reader.readBits(value_len);
                 block[i] = decodeValue(val_bits, value_len);
